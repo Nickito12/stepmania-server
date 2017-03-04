@@ -1,14 +1,14 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+""" UDP socket handler"""
 
 import socket
 from threading import Thread
 
-from smserver.smutils import smconn, smpacket
+from smserver.smutils import smconn
+from smserver.smutils.smpacket import smcommand
 
 class SocketConn(smconn.StepmaniaConn, Thread):
     ENCODING = "binary"
-    ALLOWED_PACKET = [smpacket.SMClientCommand.NSCFormatted]
+    ALLOWED_PACKET = [smcommand.SMClientCommand.NSCFormatted]
 
     def __init__(self, serv, ip, port, data):
         Thread.__init__(self)
@@ -53,4 +53,3 @@ class UDPServer(smconn.SMThread):
     def stop(self):
         smconn.SMThread.stop(self)
         self._continue = False
-

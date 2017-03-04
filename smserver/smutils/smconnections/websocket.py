@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+""" Websocket client module """
 
 import socket
 import asyncio
@@ -10,7 +9,7 @@ from smserver.smutils import smconn
 class WebSocketClient(smconn.StepmaniaConn):
     ENCODING = "json"
 
-    def __init__(self, serv, ip, port, websocket, path, loop):
+    def __init__(self, serv, ip, port, websocket, _path, loop):
         smconn.StepmaniaConn.__init__(self, serv, ip, port)
         self.websocket = websocket
         self.task = None
@@ -80,4 +79,3 @@ class WebSocketServer(smconn.SMThread):
 
         self.loop.stop()
         self._serv.close()
-

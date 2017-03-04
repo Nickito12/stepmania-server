@@ -114,7 +114,7 @@ ignore-imports=no
 [BASIC]
 
 # Good variable names which should always be accepted, separated by a comma
-good-names=i,j,k,ex,Run,_
+good-names=i,j,k,ex,Run,_,xp,ip,id,nb,db
 
 # Bad variable names which should always be refused, separated by a comma
 bad-names=foo,bar,baz,toto,tutu,tata
@@ -143,10 +143,9 @@ class-rgx=[A-Z_][a-zA-Z0-9]+$
 class-name-hint=[A-Z_][a-zA-Z0-9]+$
 
 # Regular expression matching correct function names
-function-rgx=[a-z_][a-z0-9_]{2,30}$
-
+function-rgx=(([a-z_][a-z0-9_]{2,30})|(test_[a-z0-9_]+))$
 # Naming hint for function names
-function-name-hint=[a-z_][a-z0-9_]{2,30}$
+function-name-hint=(([a-z_][a-z0-9_]{2,30})|(test_[a-z0-9_]+))$
 
 # Regular expression matching correct constant names
 const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
@@ -161,10 +160,10 @@ inlinevar-rgx=[A-Za-z_][A-Za-z0-9_]*$
 inlinevar-name-hint=[A-Za-z_][A-Za-z0-9_]*$
 
 # Regular expression matching correct method names
-method-rgx=[a-z_][a-z0-9_]{2,30}$
+method-rgx=(([a-z_][a-z0-9_]{2,30})|(test_[a-z0-9_]+))$
 
 # Naming hint for method names
-method-name-hint=[a-z_][a-z0-9_]{2,30}$
+method-name-hint=(([a-z_][a-z0-9_]{2,30})|(test_[a-z0-9_]+))$
 
 # Regular expression matching correct argument names
 argument-rgx=[a-z_][a-z0-9_]{2,30}$
@@ -286,7 +285,7 @@ expected-line-ending-format=
 [MISCELLANEOUS]
 
 # List of note tags to take in consideration, separated by a comma.
-notes=FIXME,XXX,TODO
+notes=
 
 
 [TYPECHECK]
@@ -304,7 +303,7 @@ ignored-modules=
 # List of class names for which member attributes should not be checked (useful
 # for classes with dynamically set attributes). This supports the use of
 # qualified names.
-ignored-classes=optparse.Values,thread._local,_thread._local
+ignored-classes=optparse.Values,thread._local,_thread._local,SubFactory
 
 # List of members which are set dynamically and missed by pylint inference
 # system, and so shouldn't trigger E1101 when accessed. Python regular
@@ -350,7 +349,7 @@ analyse-fallback-blocks=no
 [CLASSES]
 
 # List of method names used to declare (i.e. assign) instance attributes.
-defining-attr-methods=__init__,__new__,setUp
+defining-attr-methods=__init__,__new__,setUp,_init_on_load
 
 # List of valid names for the first argument in a class method.
 valid-classmethod-first-arg=cls

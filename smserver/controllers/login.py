@@ -66,8 +66,8 @@ class LoginController(StepmaniaController):
         self.log.info("Player %s successfully connect" % self.packet["username"])
 
         user.last_ip = self.conn.ip
-        user.stepmania_name = self.conn.stepmania_name
-        user.stepmania_version = self.conn.stepmania_version
+        user.client_name = self.conn.client_name
+        user.client_version = self.conn.client_version
 
         user.connection_token = self.conn.token
 

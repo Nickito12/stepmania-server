@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
 
 """
     The hardcore plugin add a hardcore mode in the room.
@@ -10,8 +8,15 @@
 
 import random
 
-from smserver import pluginmanager, chatplugin, stepmania_controller, models, ability
-from smserver.smutils import smpacket, smattack
+from smserver import router
+from smserver import pluginmanager
+from smserver import chatplugin
+from smserver import stepmania_controller
+from smserver import models
+from smserver import ability
+from smserver.smutils.smpacket import smpacket
+from smserver.smutils.smpacket import smcommand
+from smserver.smutils import smattack
 
 class HardcoreChatPlugin(chatplugin.ChatPlugin):
     """
@@ -97,14 +102,16 @@ class HardcorePlugin(pluginmanager.StepmaniaPlugin):
         if not step:
             return
 
-        serv.songstats[player_id]["attack_metter"] += self.conf_weight.get(step, 0)
+        with serv.mutex:
+            serv.songstats[player_id]["attack_metter"] += self.conf_weight.get(step, 0)
 
     def send_attack(self, serv, player_id, session):
         """
             Send an attack to every players except the current one
         """
 
-        serv.songstats[player_id]["attack_metter"] = 0
+        with serv.mutex:
+            serv.songstats[player_id]["attack_metter"] = 0
 
         attack = random.choice(list(smattack.SMAttack))
 
@@ -136,7 +143,7 @@ class HardcoreStartControllerPlugin(stepmania_controller.StepmaniaController):
         Custom controller for Game Start Request packet
     """
 
-    command = smpacket.SMClientCommand.NSCGSR
+    command = smcommand.SMClientCommand.NSCGSR
     require_login = True
 
     def handle(self):
@@ -151,5 +158,11 @@ class HardcoreStartControllerPlugin(stepmania_controller.StepmaniaController):
         if self.room.status != 2 or self.room.mode != "hardcore":
             return
 
-        self.conn.songstats[0]["attack_metter"] = 0
-        self.conn.songstats[1]["attack_metter"] = 0
+        with self.conn.mutex:
+            self.conn.songstats[0]["attack_metter"] = 0
+            self.conn.songstats[1]["attack_metter"] = 0
+
+router.add_route(
+    smcommand.SMClientCommand.NSCGSR,
+    HardcoreStartControllerPlugin
+)

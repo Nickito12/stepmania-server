@@ -4,15 +4,17 @@ Base module for handling all type of connection
 """
 
 import datetime
-import logging
 import uuid
 
 from threading import Lock, Thread
 
-from smserver.smutils import smpacket
+from smserver import logger
+from smserver.smutils.smpacket import smpacket
+from smserver.smutils.smpacket import smcommand
+
 
 class StepmaniaConn(object):
-    logger = logging.getLogger('stepmania')
+    log = logger.get_logger()
     ENCODING = "binary"
     ALLOWED_PACKET = []
 
@@ -27,7 +29,6 @@ class StepmaniaConn(object):
 
         self.token = uuid.uuid4().hex
 
-        self.users = []
         self.room = None
 
         self.songs = {}
@@ -41,8 +42,8 @@ class StepmaniaConn(object):
         self.chat_timestamp = False
 
         self.last_ping = datetime.datetime.now()
-        self.stepmania_version = None
-        self.stepmania_name = None
+        self.client_version = None
+        self.client_name = None
 
     def run(self):
         """ Start to listen for incomming data """
@@ -62,30 +63,30 @@ class StepmaniaConn(object):
 
         packet = smpacket.SMPacket.from_(self.ENCODING, data)
         if not packet:
-            self.logger.info("packet %s drop from %s", data, self.ip)
+            self.log.info("packet %s drop from %s", data, self.ip)
             return None
 
-        self.logger.debug("Packet received from %s: %s", self.ip, packet)
+        self.log.debug("Packet received from %s: %s", self.ip, packet)
 
         if self.ALLOWED_PACKET and packet.command not in self.ALLOWED_PACKET:
-            self.logger.debug("packet %s ignored from %s", data, self.ip)
+            self.log.debug("packet %s ignored from %s", data, self.ip)
             return None
 
-        if packet.command == smpacket.SMClientCommand.NSCPingR:
+        if packet.command == smcommand.SMClientCommand.NSCPingR:
             self.last_ping = datetime.datetime.now()
 
-        self._serv.on_packet(self, packet)
+        self._serv.on_packet(self, packet=packet)
 
     def send(self, packet):
         """ How to send a new packet """
 
-        if packet.command == smpacket.SMServerCommand.NSCCM and self.chat_timestamp:
+        if packet.command == smcommand.SMServerCommand.NSCCM and self.chat_timestamp:
             packet["message"] = "[%s] %s" % (
                 datetime.datetime.now().strftime("%X"),
                 packet["message"]
             )
 
-        self.logger.debug("packet send to %s: %s", self.ip, packet)
+        self.log.debug("packet send to %s: %s", self.ip, packet)
         self._send_data(packet.to_(self.ENCODING))
 
     def _send_data(self, data):
@@ -97,7 +98,7 @@ class StepmaniaConn(object):
 
 
 class SMThread(Thread):
-    logger = logging.getLogger('stepmania')
+    log = logger.get_logger()
 
     def __init__(self, server, ip, port):
         Thread.__init__(self)
@@ -107,7 +108,7 @@ class SMThread(Thread):
         self.port = port
 
     def run(self):
-        self.logger.info("Successfully close thread: %s", self)
+        self.log.info("Successfully close thread: %s", self)
 
     def stop(self):
-        self.logger.debug("Closing thread: %s", self)
+        self.log.debug("Closing thread: %s", self)

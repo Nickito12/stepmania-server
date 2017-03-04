@@ -1,18 +1,22 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+""" Server module """
 
-import sys
 import datetime
+from functools import wraps
 
-from sqlalchemy.orm import object_session
+from smserver import __version__
+from smserver import database
+from smserver import conf
+from smserver import logger
+from smserver import models
+from smserver import router
+from smserver import sdnotify
+from smserver import profiling
 
 from smserver.pluginmanager import PluginManager
-from smserver.authplugin import AuthPlugin
-from smserver.database import DataBase
 from smserver.watcher import StepmaniaWatcher
-from smserver import conf, logger, models, sdnotify, __version__
 from smserver.chathelper import with_color
-from smserver.smutils import smthread, smpacket
+from smserver.smutils import smthread
+from smserver.smutils.smpacket import smpacket
 
 def with_session(func):
     """ Wrap the function with a sqlalchemy session.
@@ -25,9 +29,10 @@ def with_session(func):
 
     Only work with instance methods of StepmaniaServer class """
 
-    def wrapper(self, *opt):
+    @wraps(func)
+    def wrapper(self, *arg, **kwargs):
         with self.db.session_scope() as session:
-            func(self, session, *opt)
+            func(self, session, *arg, **kwargs)
     return wrapper
 
 class StepmaniaServer(smthread.StepmaniaServer):
@@ -44,11 +49,9 @@ class StepmaniaServer(smthread.StepmaniaServer):
             server.StepmaniaServer(config).start()
     """
 
-    def __init__(self, config=None):
+    def __init__(self):
         """
             Take a configuration and initialize the server:
-
-            * Load the database and create the tables if needed
             * Load the plugins
             * Load the controllers
             * Load the chat command available
@@ -57,59 +60,38 @@ class StepmaniaServer(smthread.StepmaniaServer):
             If no configuration are passed, it will use the default one.
         """
 
-        self.sd_notify = sdnotify.SDNotify()
+        self.sd_notify = sdnotify.get_notifier()
 
-        if not config:
-            config = conf.Conf()
+        self.config = conf.config
 
-        self.config = config
-
-        self.log = logger.Logger(config.logger).logger
-
+        self.log = logger.get_logger()
         self.log.debug("Configuration loaded")
 
-        self.log.debug("Init database")
-        self.sd_notify.status("Init database")
-
-        self.db = DataBase(
-            type=config.database.get("type", 'sqlite'),
-            database=config.database.get("database"),
-            user=config.database.get("user"),
-            password=config.database.get("password"),
-            host=config.database.get("host"),
-            port=config.database.get("port"),
-            driver=config.database.get("driver"),
-        )
+        self.db = database.get_current_db()
 
         self._init_database()
 
         self.log.debug("Load plugins...")
         self.sd_notify.status("Load plugins...")
 
-        self.auth = PluginManager.get_plugin(
-            'smserver.auth.%s' % config.auth["plugin"],
-            "AuthPlugin",
-            default=AuthPlugin)(self, config.auth["autocreate"])
-
-
+        self.router = router.get_router()
         self.plugins = self._init_plugins()
-        self.controllers = self._init_controllers()
         self.chat_commands = self._init_chat_commands()
         self.log.debug("Plugins loaded")
 
         self.log.info("Init server listenner...")
         self.sd_notify.status("Start server listenner...")
 
-        if config.server.get("type") not in self.SERVER_TYPE:
+        if self.config.server.get("type") not in self.SERVER_TYPE:
             server_type = "async"
         else:
-            server_type = config.server["type"]
+            server_type = self.config.server["type"]
 
         servers = [
-            (config.server["ip"], config.server["port"], server_type),
+            (self.config.server["ip"], self.config.server["port"], server_type),
         ]
 
-        for server in config.additional_servers:
+        for server in self.config.additional_servers:
             servers.append((server["ip"], server["port"], server.get("type")))
 
         smthread.StepmaniaServer.__init__(self, servers)
@@ -161,7 +143,6 @@ class StepmaniaServer(smthread.StepmaniaServer):
 
         self.log.info("Reload plugins")
         self.plugins = self._init_plugins(True)
-        self.controllers = self._init_controllers(True)
         self.chat_commands = self._init_chat_commands(True)
 
         self.log.info("Plugins reloaded")
@@ -169,10 +150,13 @@ class StepmaniaServer(smthread.StepmaniaServer):
         self.send_sd_running_status()
         self.sd_notify.ready()
 
-    def send_sd_running_status(self):
+    def send_sd_running_status(self, session=None):
         """ Send running status to systemd """
 
-        with self.db.session_scope() as session:
+        if not session:
+            with self.db.session_scope() as session:
+                nb_onlines = models.User.nb_onlines(session)
+        else:
             nb_onlines = models.User.nb_onlines(session)
 
         max_users = self.config.server.get("max_users", -1)
@@ -187,24 +171,26 @@ class StepmaniaServer(smthread.StepmaniaServer):
         )
 
     @with_session
-    def add_connection(self, session, conn):
+    def add_connection(self, session, conn): #pylint: disable=arguments-differ
         """ Add a new connection """
+
         if models.Ban.is_ban(session, conn.ip):
             self.log.info("Reject connection from ban ip %s", conn.ip)
             conn.close()
             return
 
-        session.add(models.Connection(
+        models.Connection.create(
+            session=session,
             ip=conn.ip,
             port=conn.port,
             token=conn.token,
-        ))
-
+        )
         smthread.StepmaniaServer.add_connection(self, conn)
         self.send_sd_running_status()
 
     @with_session
-    def on_packet(self, session, serv, packet):
+    @profiling.profile("packet")
+    def on_packet(self, session, serv, packet): #pylint: disable=arguments-differ
         self.handle_packet(session, serv, packet)
 
     def handle_packet(self, session, serv, packet):
@@ -215,19 +201,12 @@ class StepmaniaServer(smthread.StepmaniaServer):
             and try to run every plugins.
         """
 
-        for controller in self.controllers.get(packet.command, []):
-            app = controller(self, serv, packet, session)
-
-            if app.require_login and not app.active_users:
-                self.log.info("Action forbidden %s for user %s" % (packet.command, serv.ip))
-                continue
-
-            try:
-                app.handle()
-            except Exception as err:
-                self.log.exception("Message %s %s %s",
-                                          type(controller).__name__, controller.__module__, err)
-            session.commit()
+        self.router.route(
+            server=self,
+            connection=serv,
+            packet=packet,
+            session=session
+        )
 
         for app in self.plugins:
             func = getattr(app, "on_%s" % packet.command.name.lower(), None)
@@ -235,14 +214,14 @@ class StepmaniaServer(smthread.StepmaniaServer):
                 continue
             try:
                 func(session, serv, packet)
-            except Exception as err:
+            except Exception as err: #pylint: disable=broad-except
                 self.log.exception("Message %s %s %s",
-                                          type(app).__name__, app.__module__, err)
+                                   type(app).__name__, app.__module__, err)
             session.commit()
 
 
     @with_session
-    def on_disconnect(self, session, conn):
+    def on_disconnect(self, session, conn): #pylint: disable=arguments-differ
         """
             Action to be done when someone is disconected.
 
@@ -252,17 +231,16 @@ class StepmaniaServer(smthread.StepmaniaServer):
             :type serv: smserver.smutils.smconn.StepmaniaConn
         """
 
-        room_id = conn.room
+        connection = models.Connection.by_token(conn.token, session)
+
+        room = connection.room
         smthread.StepmaniaServer.on_disconnect(self, conn)
 
-        models.Connection.remove(conn.token, session)
+        self.send_sd_running_status(session)
 
-        self.send_sd_running_status()
-
-        users = models.User.online_from_ids(conn.users, session)
+        users = connection.active_users
         if not users:
             self.log.info("Player %s disconnected", conn.ip)
-            return
 
         for user in users:
             models.User.disconnect(user, session)
@@ -278,13 +256,13 @@ class StepmaniaServer(smthread.StepmaniaServer):
                 frienduser = session.query(models.User).filter_by(id = friendid).first()
                 if frienduser.online == True and frienduser.friend_notifications == True and not friendconn == None:
                     self.send_message(
-                        "Your friend %s disconnected" % with_color(user.name),
+                        "Your friend %s has disconnected" % with_color(user.name),
                         conn=friendconn
                     )
-        if room_id:
-            room = session.query(models.Room).get(room_id)
+
+        if room:
             self.send_message(
-                "%s disconnected" % models.User.colored_users_repr(users, room_id),
+                "%s disconnected" % models.User.colored_users_repr(users, room.id),
                 room=room
             )
 
@@ -293,6 +271,9 @@ class StepmaniaServer(smthread.StepmaniaServer):
             for conn in self.connections:
                 if conn.room == None:
                     self.send_user_list_lobby(conn, session)
+
+
+        models.Connection.remove(conn.token, session)
 
 
     def send_user_list(self, room):
@@ -423,7 +404,7 @@ class StepmaniaServer(smthread.StepmaniaServer):
                     song_subtitle=room.active_song.subtitle,
                     song_artist=room.active_song.artist
                     )
-            if conn.stepmania_version < 4:
+            if conn.client_version < 4:
                 conn.send(nonhashpacket)
             else:
                 conn.send(hashpacket)
@@ -481,11 +462,6 @@ class StepmaniaServer(smthread.StepmaniaServer):
         return True
 
     def _init_database(self):
-        if self.config.database["update_schema"]:
-            self._update_schema()
-        else:
-            self.db.create_tables()
-
         with self.db.session_scope() as session:
             models.User.disconnect_all(session)
             models.Room.init_from_hashes(self.config.get("rooms", []), session)
@@ -496,31 +472,6 @@ class StepmaniaServer(smthread.StepmaniaServer):
                 for ip in self.config.get("ban_ips", []):
                     models.Ban.ban(session, ip, fixed=True)
 
-
-    def _init_controllers(self, force_reload=False):
-        controllers = {}
-
-        controller_classes = PluginManager(
-            plugin_class="StepmaniaController",
-            directory="smserver.controllers",
-            force_reload=force_reload
-        )
-
-        controller_classes.extend(
-            self._get_plugins("StepmaniaController", force_reload)
-        )
-
-        for controller in controller_classes:
-            if not controller.command:
-                continue
-
-            if controller.command not in controllers:
-                controllers[controller.command] = []
-
-            controllers[controller.command].append(controller)
-            self.log.debug("Controller loaded for command %s: %s", controller.command, controller)
-
-        return controllers
 
     def _init_chat_commands(self, force_reload=False):
         chat_commands = {}
@@ -561,17 +512,3 @@ class StepmaniaServer(smthread.StepmaniaServer):
             plugin_file="plugin",
             force_reload=force_reload
         )
-
-    def _update_schema(self):
-        self.log.info("DROP all the database tables")
-        self.db.recreate_tables()
-
-
-def main():
-    config = conf.Conf(*sys.argv[1:])
-
-    StepmaniaServer(config).start()
-
-if __name__ == "__main__":
-    main()
-

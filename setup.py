@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+""" Setup script """
 
 import shutil
 import os
@@ -17,23 +16,23 @@ import smserver
 for filename in glob.glob("cfg/*.yml*"):
     shutil.copy(filename, "smserver/_fallback_conf")
 
-conf_dir = None
+CONF_DIR = None
 
 if os.path.splitdrive(sys.executable)[0] != "":
-    conf_dir = "conf"
+    CONF_DIR = "conf"
 
-if not conf_dir and os.path.isdir("/etc/smserver"):
-    conf_dir = "/etc/smserver"
+if not CONF_DIR and os.path.isdir("/etc/smserver"):
+    CONF_DIR = "/etc/smserver"
 
-if not conf_dir:
+if not CONF_DIR:
     try:
         os.mkdir("/etc/smserver")
-        conf_dir = "/etc/smserver"
+        CONF_DIR = "/etc/smserver"
     except:
         pass
 
-if not conf_dir:
-    conf_dir = "conf"
+if not CONF_DIR:
+    CONF_DIR = "conf"
 
 setup(
     name='smserver',
@@ -65,6 +64,7 @@ setup(
         'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
     ],
 
     extras_require={
@@ -73,6 +73,7 @@ setup(
 
     install_requires=[
         'pyyaml',
+        'redis',
         'sqlalchemy',
         'websockets',
     ],
@@ -93,5 +94,5 @@ setup(
 
     license="MIT",
 
-    data_files=[(conf_dir, ['cfg/conf.yml.orig'])],
+    data_files=[(CONF_DIR, ['cfg/conf.yml.orig'])],
 )

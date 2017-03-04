@@ -30,6 +30,7 @@ class UserTest(utils.DBTest):
         """ Test user fullname with room """
 
         user = user_factory.user_with_room_privilege(level=10)
+
         self.assertEqual(user.fullname(user.room.id), "~%s" % user.name)
 
         user = user_factory.user_with_room_privilege(level=9)
@@ -48,10 +49,15 @@ class UserTest(utils.DBTest):
         """ Test user level """
 
         user = user_factory.user_with_room_privilege(level=5)
-        self.assertEqual(user.level(user.room.id), 5)
+        room = user.room
+        self.assertEqual(user.level(room.id), 5)
 
         user.rank = 9
         self.assertEqual(user.level(), 9)
+        self.assertEqual(user.level(room.id), 5)
+
+        user2 = user_factory.UserFactory(rank=4)
+        self.assertEqual(user2.level(room.id), 1)
 
     def test_from_ids(self):
         """ Test getting the users from list of ids """

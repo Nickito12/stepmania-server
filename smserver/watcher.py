@@ -1,4 +1,7 @@
-# -*- coding: utf8 -*-
+""" Watcher module.
+
+This module is responsible of executing regular(periodic) tasks
+"""
 
 from threading import Thread, Lock
 import time
@@ -7,9 +10,9 @@ import itertools
 import socket
 
 from smserver import models
-from smserver.smutils import smpacket
+from smserver.smutils.smpacket import smpacket
 from smserver.chathelper import with_color
-from smserver.controllers.game_start_request import StartGameRequestController
+from smserver.controllers.legacy.game_start_request import StartGameRequestController
 
 class PeriodicMethods(object):
     """ Decorator to indicate the periodicity of a methods """
@@ -101,7 +104,7 @@ class StepmaniaWatcher(Thread):
         self._sock.sendto(packet.binary, (self.UDP_IP, self.UDP_PORT))
 
     @periodicmethod(1)
-    def send_ping(self, session):
+    def send_ping(self, _session):
         self.server.sendall(smpacket.SMPacketServerNSCPing())
 
     @periodicmethod(2)
@@ -153,8 +156,9 @@ class StepmaniaWatcher(Thread):
     def send_scoreboard(self, room, session):
         scores = []
         for conn in self.server.ingame_connections(room.id):
-            with conn.mutex:
-                for user in models.User.online_from_ids(conn.users, session):
+            connection = models.Connection.by_token(conn.token, session)
+            for user in connection.active_users:
+                with conn.mutex:
                     if user.pos not in conn.songstats:
                         continue
 
@@ -237,4 +241,3 @@ class StepmaniaWatcher(Thread):
                 datetime.datetime.now() - wait_since < datetime.timedelta(seconds=3)):
 
             StartGameRequestController.launch_song(room, song, self.server)
-

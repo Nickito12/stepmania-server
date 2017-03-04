@@ -1,9 +1,6 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+""" General Chat command to handle """
 
-
-from smserver import models
-from smserver import smutils
+from smserver import models, smutils
 from smserver.chathelper import with_color
 from smserver.chatplugin import ChatPlugin
 from smserver.models import ranked_chart

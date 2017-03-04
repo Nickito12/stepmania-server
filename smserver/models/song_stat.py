@@ -1,15 +1,15 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+""" SongStat model module """
 
 import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Float, LargeBinary
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, Text, Float, LargeBinary
 
 from sqlalchemy.orm import relationship, object_session
 
 from smserver.models import schema
 from smserver.chathelper import with_color, nick_color
-from smserver.smutils.smpacket import SMPacket, SMPayloadType
+from smserver.smutils.smpacket.smpacket import SMPacket
+from smserver.smutils.smpacket import smencoder
 
 __all__ = ['SongStat']
 
@@ -84,9 +84,9 @@ class SongStat(schema.Base):
 
     migsp      = Column(Integer, default=0)
     toasty      = Column(Integer, default=0)
-    grade      = Column(Integer, default=7)
+    grade      = Column(Integer, default=7, index=True)
     difficulty = Column(Integer, default=0)
-    feet       = Column(Integer, default=0)
+    feet       = Column(Integer, default=0, index=True)
 
     ssr = Column(Float(precision=5))
     migs = Column(Float(precision=5))
@@ -331,15 +331,14 @@ class SongStat(schema.Base):
 
 class BinaryStats(SMPacket):
     _payload = [
-        (SMPayloadType.INT, "nb_notes", 8),
-        (SMPayloadType.LIST, "stats", ("nb_notes", [
-            (SMPayloadType.MSN, "grade", None),
-            (SMPayloadType.LSN, "stepid", None),
-            (SMPayloadType.INT, "score", 4),
-            (SMPayloadType.INT, "combo", 2),
-            (SMPayloadType.INT, "health", 2),
-            (SMPayloadType.INT, "time", 4)
+        (smencoder.SMPayloadType.INT, "nb_notes", 8),
+        (smencoder.SMPayloadType.LIST, "stats", ("nb_notes", [
+            (smencoder.SMPayloadType.MSN, "grade", None),
+            (smencoder.SMPayloadType.LSN, "stepid", None),
+            (smencoder.SMPayloadType.INT, "score", 4),
+            (smencoder.SMPayloadType.INT, "combo", 2),
+            (smencoder.SMPayloadType.INT, "health", 2),
+            (smencoder.SMPayloadType.INT, "time", 4)
             ])
         )
     ]
-
