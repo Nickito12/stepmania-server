@@ -1,5 +1,7 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+""" Chat helper module
+
+Provide helper function to use when sending chat message
+"""
 
 from colorsys import hls_to_rgb
 
@@ -83,7 +85,3 @@ def nick_color(nick):
     color = hls_to_rgb(hue, 0.5, 0.9)
 
     return ''.join(["{:02x}".format(int(c*255)) for c in color])
-
-if __name__ == "__main__":
-    import doctest
-    doctest.testmod()

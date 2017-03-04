@@ -1,12 +1,16 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+""" Database module
+
+To get the current database use `get_current_db`
+"""
 
 from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import scoped_session
 
 from smserver.models import schema
+
 
 class DataBase(object):
     """
@@ -15,7 +19,7 @@ class DataBase(object):
         It's a wrapper around SQLAlchemy database creation.
         By default, it create a in memory sqlite database.
 
-        :param str type: Type of database (sqlite, mysql, postgresql, ...)
+        :param str type_: Type of database (sqlite, mysql, postgresql, ...)
         :param str database: Name of the database (file for sqlite)
         :param str user: User of the database
         :param str password: Password of the database
@@ -24,10 +28,10 @@ class DataBase(object):
         :param str driver: Driver for communication with the database.
     """
 
-    def __init__(self, type="sqlite", database=None, user=None,
+    def __init__(self, type_="sqlite", database=None, user=None,
                  password=None, host=None, port=None, driver=None, check_same_thread=True):
-        self._type = type
-        if not type:
+        self._type = type_
+        if not type_:
             self._type = "sqlite"
         self._database = database
         self._user = user
@@ -35,35 +39,42 @@ class DataBase(object):
         self._host = host
         self._port = port
         self._driver = driver
+
         self._engine = None
         self._check_same_thread = check_same_thread
+        self._session = None
 
     @property
     def engine(self):
-        """
-            SQLAlchemy engine assosiate with the DataBase
-        """
+        """ SQLAlchemy engine assosiate with the DataBase """
+
 
         if self._engine:
             return self._engine
         self._engine = create_engine(self._database_url)
-        return self.engine
+        return self._engine
 
     @property
     def session(self):
-        """
-            Return a new SQLAlchemy Session
-        """
+        """ Return a SQLAlchemy Session maker """
 
-        return sessionmaker(bind=self.engine)
+        if self._session:
+            return self._session
+
+        self._session = scoped_session(sessionmaker(bind=self.engine))
+        return self._session
 
     @contextmanager
-    def session_scope(self):
+    def session_scope(self, session=None):
         """
             Provide a transactional scope around a series of operations.
         """
 
-        session = self.session()
+        close_connection = False
+        if not session:
+            close_connection = True
+            session = self.session() #pylint: disable=not-callable
+
         try:
             yield session
             session.commit()
@@ -71,7 +82,8 @@ class DataBase(object):
             session.rollback()
             raise
         finally:
-            session.close()
+            if close_connection:
+                session.close()
 
     @property
     def _database_url(self):
@@ -85,7 +97,7 @@ class DataBase(object):
             sqlite:///stepmania.db
 
             >>> DataBase(
-            ...     type="postgresql",
+            ...     type_="postgresql",
             ...     user="u/se//r",
             ...     password="password",
             ...     host="127.0.0.1",
@@ -94,7 +106,7 @@ class DataBase(object):
             postgresql://u%2Fse%2F%2Fr:***@127.0.0.1/stepmania
 
             >>> DataBase(
-            ...     type="mysql",
+            ...     type_="mysql",
             ...     user="user@mail.fr",
             ...     password="password",
             ...     host="localhost",
@@ -137,16 +149,27 @@ class DataBase(object):
         schema.Base.metadata.drop_all(self.engine)
         schema.Base.metadata.create_all(self.engine)
 
-    @classmethod
-    def test_db(cls):
-        """
-            Return a inmemory database
-        """
 
-        db = cls()
-        db.create_tables()
-        return db
+class _Database:
+    db = None
 
-if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
+
+def setup_db(type_="sqlite", database=None, user=None, password=None,
+             host=None, port=None, driver=None):
+    """ Initalize the database"""
+
+    _Database.db = DataBase(
+        type_=type_,
+        database=database,
+        user=user,
+        password=password,
+        host=host,
+        port=port,
+        driver=driver,
+    )
+
+    return _Database.db
+
+def get_current_db():
+    """ Get the current database """
+    return _Database.db

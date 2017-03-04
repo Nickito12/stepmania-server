@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
 
 """
     Provide sd_notify wrapper to notify service manager about start-up
@@ -20,7 +18,16 @@ class SDNotify(object):
         >>> sd_notify.ready()
     """
 
+    initialize = None
+
+    def __new__(cls):
+        if cls.initialize:
+            return cls.initialize
+
+        return super().__new__(cls)
+
     def __init__(self):
+        self.initialize = self
         try:
             self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         except AttributeError:
@@ -108,3 +115,6 @@ class SDNotify(object):
 
         self.notify("WATCHDOG=1")
 
+def get_notifier():
+    """ Return a sdnotifier object """
+    return SDNotify()

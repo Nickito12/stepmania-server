@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+""" Chat ban module """
 
-
-from smserver import models, ability
+from smserver import ability
+from smserver import models
+from smserver.resources import room_resource
 from smserver.chathelper import with_color
 from smserver.chatplugin import ChatPlugin
 
@@ -76,8 +76,10 @@ class ChatKick(ChatPlugin):
         if not room:
             return server.disconnect_user(user.id)
 
-        return server.leave_room(room, user.id)
+        if user.room != room:
+            return
 
+        room_resource.RoomResource(server, user.connection).leave()
 
 class ChatUnBan(ChatPlugin):
     command = "unban"
@@ -92,4 +94,3 @@ class ChatUnBan(ChatPlugin):
 
         models.Ban.unban(serv.session, user_id=user.id, room_id=serv.conn.room)
         serv.send_message("User %s has been unbanned from this room" % user.fullname_colored(serv.conn.room))
-

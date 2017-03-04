@@ -1,5 +1,4 @@
-#usr/bin/env python3
-# -*- coding: utf8 -*-
+""" Model Room module """
 
 import datetime
 import hashlib
@@ -8,16 +7,18 @@ from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Bool
 from sqlalchemy import func, or_, and_, desc
 from sqlalchemy.orm import reconstructor, relationship, object_session
 
-from smserver.smutils import smpacket
+from smserver.smutils.smpacket import smpacket
 from smserver.models import schema, game, user, privilege
 
 __all__ = ['Room']
 
 class Room(schema.Base):
+    """ Room class."""
+
     __tablename__ = 'rooms'
 
     id             = Column(Integer, primary_key=True)
-    name           = Column(String(255))
+    name           = Column(String(255), unique=True, index=True)
     motd           = Column(String(255))
     password       = Column(String(255))
     description    = Column(Text, default="")
@@ -49,9 +50,9 @@ class Room(schema.Base):
     updated_at     = Column(DateTime, onupdate=datetime.datetime.now)
 
     def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self._nb_players = None
 
-        schema.Base.__init__(self, **kwargs)
 
     @reconstructor
     def _init_on_load(self):
@@ -78,6 +79,7 @@ class Room(schema.Base):
 
     @property
     def nb_players(self):
+        """ Get the numer of users in the room """
         if self._nb_players:
             return self._nb_players
 
@@ -91,16 +93,15 @@ class Room(schema.Base):
 
     @property
     def online_users(self):
+        """ Get the onlines user in this room """
+
         return (object_session(self)
                 .query(user.User)
-                .filter_by(online=True, room_id=self.id)
-                .all())
+                .filter_by(online=True, room_id=self.id))
 
     @property
     def moderators(self):
-        """
-            Get all the moderators in this room
-        """
+        """ Get all the moderators in this room """
 
         return (object_session(self)
                 .query(user.User)
@@ -109,6 +110,11 @@ class Room(schema.Base):
                     privilege.Privilege.room_id == self.id,
                     privilege.Privilege.level >= 5
                 ))
+
+    def is_full(self):
+        """ Return True if the room is full """
+
+        return self.nb_players >= self.max_users
 
     @property
     def room_info(self):
@@ -130,14 +136,14 @@ class Room(schema.Base):
     @property
     def nsccuul(self):
         """ Return the NSCCUUL packets listing users in the room """
-
-        users = self.online_users
-        return smpacket.SMPacketServerNSCCUUL(
+        packet = smpacket.SMPacketServerNSCCUUL(
             max_players=self.max_users,
-            nb_players=len(users),
             players=[{"status": u.enum_status.value, "name": u.name}
-                     for u in users]
+                     for u in self.online_users]
             )
+
+        packet["nb_players"] = len(packet["players"])
+        return packet
 
     @staticmethod
     def list_to_smopacket(rooms):
@@ -202,11 +208,13 @@ class Room(schema.Base):
 
         return (session
                 .query(cls)
-                .join(privilege.Privilege)
+                .outerjoin(privilege.Privilege)
                 .filter(or_(
-                    cls.hidden == False,
                     and_(
-                        cls.hidden == True,
+                        cls.hidden == False, #pylint: disable=singleton-comparison
+                    ),
+                    and_(
+                        cls.hidden == True, #pylint: disable=singleton-comparison
                         or_(*query_privileges)
                     )
                 )))
@@ -227,11 +235,8 @@ class Room(schema.Base):
             .filter_by(name=name)
             .filter(or_(
                 cls.password.is_(None),
-                and_(
-                    cls.password.isnot(None),
-                    cls.password == password
-                )))
-            .first()
+                cls.password == password
+            )).one_or_none()
             )
 
     @classmethod
@@ -288,4 +293,3 @@ class Room(schema.Base):
             rooms.append(room)
 
         return rooms
-

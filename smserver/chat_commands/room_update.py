@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
+""" Chat command for room update """
 
 from smserver import ability
+from smserver.resources import room_resource
 from smserver.chatplugin import ChatPlugin
-from smserver.controllers.enter_room import EnterRoomController
+from smserver.controllers.legacy.enter_room import EnterRoomController
 
 class ChatMaxUsers(ChatPlugin):
     command = "maxusers"
@@ -180,12 +180,13 @@ class ChatDeleteRoom(ChatPlugin):
     def __call__(self, serv, message):
         serv.send_message("!! %s deleted this room !!" % serv.colored_user_repr(serv.conn.room))
 
-        room = serv.room
+        resource = room_resource.RoomResource(
+            serv.server,
+            serv.token,
+            session=serv.session
+        )
 
-        for conn in serv.server.room_connections(serv.conn.room):
-            serv.server.leave_room(room, conn=conn)
-
-        serv.session.delete(room)
+        resource.delete(serv.room)
 
 
 class ChatLeaveRoom(ChatPlugin):
@@ -194,5 +195,10 @@ class ChatLeaveRoom(ChatPlugin):
     room = True
 
     def __call__(self, serv, message):
-        serv.server.leave_room(serv.room, conn=serv.conn)
+        resource = room_resource.RoomResource(
+            serv.server,
+            serv.token,
+            session=serv.session
+        )
 
+        resource.leave()

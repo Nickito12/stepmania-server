@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf8 -*-
-
+""" User model module """
 
 import datetime
 import enum
@@ -14,13 +12,7 @@ from smserver.models.song_stat import SongStat
 from smserver.models.chart import Chart
 from smserver import ability
 
-__all__ = ['UserStatus', 'User', 'AlreadyConnectError']
-
-
-class AlreadyConnectError(Exception):
-    def __init__(self, user):
-        self.user = user
-        Exception()
+__all__ = ['UserStatus', 'User']
 
 
 class UserStatus(enum.Enum):
@@ -46,15 +38,15 @@ class User(schema.Base):
 
     id                = Column(Integer, primary_key=True)
     pos               = Column(Integer)
-    name              = Column(String(255))
+    name              = Column(String(255), unique=True, index=True)
     password          = Column(String(255))
     email             = Column(String(255))
     rank              = Column(Integer, default=1)
     xp                = Column(Integer, default=0)
     toastycount       = Column(Integer, default=0)
     last_ip           = Column(String(255))
-    stepmania_version = Column(Integer)
-    stepmania_name    = Column(String(255))
+    client_version   = Column(Integer)
+    client_name      = Column(String(255))
     online            = Column(Boolean)
     status            = Column(Integer, default=1)
     rating            = Column(Float, default=0)
@@ -85,6 +77,7 @@ class User(schema.Base):
 
     @property
     def enum_status(self):
+        """ Return the enum associate with the user status """
         return UserStatus(self.status)
 
     @property
@@ -129,7 +122,7 @@ class User(schema.Base):
         if priv:
             return priv.level
 
-        return 0
+        return 1
 
 
     def calcrating(self, topssrs):
@@ -230,24 +223,6 @@ class User(schema.Base):
             cls.id.in_(ids),
             cls.pos == pos
         ).first()
-
-    @classmethod
-    def connect(cls, name, pos, session):
-        user = session.query(cls).filter_by(name=name).first()
-        if not user:
-            user = cls(name=name)
-            session.add(user)
-
-        if user.online:
-            raise AlreadyConnectError(user)
-
-        user.online = True
-        user.pos = pos
-
-        session.commit()
-
-        return user
-
 
     @classmethod
     def nb_onlines(cls, session):
