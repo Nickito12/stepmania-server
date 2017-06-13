@@ -22,6 +22,9 @@ class Song(schema.Base):
 
     active_rooms = relationship("Room", back_populates="active_song")
 
+    simfile = relationship("Simfile", back_populates="song")
+    ranked_charts = relationship("RankedChart", back_populates="song")
+
     stats        = relationship("SongStat", back_populates="song")
     games        = relationship("Game", back_populates="song")
 

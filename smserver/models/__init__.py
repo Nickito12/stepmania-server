@@ -8,3 +8,9 @@ from smserver.models.privilege import Privilege
 from smserver.models.ban import Ban
 from smserver.models.game import Game
 from smserver.models.connection import Connection
+from smserver.models.chart import Chart
+from smserver.models.simfile import Simfile
+from smserver.models.officialpack import OfficialPack
+from smserver.models.rankedchart import RankedChart
+from smserver.models.pack import Pack
+from smserver.models.packsimfile import PackSimfile
