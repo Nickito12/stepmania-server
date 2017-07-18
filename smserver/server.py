@@ -326,7 +326,7 @@ class StepmaniaServer(smthread.StepmaniaServer):
         """
             Send a NSCUUL packet to update the user list for the lobby
         """
-        users = session.query(models.User).filter_by(online = 1).filter_by(room_id = None).all()
+        users = session.query(models.User).filter_by(online = 1).all()
         packet =  smpacket.SMPacketServerNSCCUUL(
             max_players=255,
             nb_players=len(users),
