@@ -14,6 +14,8 @@ class HelloController(StepmaniaController):
 
         self.connection.client_version = self.packet["version"]
         self.connection.client_name = self.packet["name"]
+        self.connection.song = None
+        self.connection.room = None
 
         self.conn.send(smpacket.SMPacketServerNSCHello(
             version=128,

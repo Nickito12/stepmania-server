@@ -14,3 +14,4 @@ from smserver.models.officialpack import OfficialPack
 from smserver.models.rankedchart import RankedChart
 from smserver.models.pack import Pack
 from smserver.models.packsimfile import PackSimfile
+from smserver.models.relationship import Relationship

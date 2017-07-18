@@ -4,6 +4,7 @@ from smserver import ability
 from smserver import exceptions
 from smserver import services
 from smserver.resources import base
+from smserver import models
 
 class ChatResource(base.BaseResource):
     """ Chat class resource """
@@ -21,8 +22,6 @@ class ChatResource(base.BaseResource):
         if command:
             return self.command(command, param)
 
-        if not target and not self.connection.room:
-            return
 
         if target:
             services.chat.send_message_token(
@@ -31,11 +30,20 @@ class ChatResource(base.BaseResource):
                 source=self.token
             )
         else:
-            services.chat.send_message_room(
-                room_id=self.connection.room_id,
-                message=message,
-                source=self.token
-            )
+            if self.connection.room_id != None:
+                services.chat.send_message_room(
+                    room_id=self.connection.room_id,
+                    message=message,
+                    source=self.token
+                )
+            else:
+                for user in self.session.query(models.User).filter_by(online=True).filter_by(room=None).all():
+                    services.chat.send_message_token(
+                        token=user.connection_token,
+                        message=message,
+                        source=self.token
+                    )
+
 
     @staticmethod
     def parse_command(message, prefix="/"):

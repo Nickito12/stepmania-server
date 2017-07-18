@@ -59,6 +59,9 @@ class LoginController(StepmaniaController):
             )
         ))
 
+        self.connection.song = None
+        self.connection.room = None
+
         self.send(models.Room.smo_list(self.session, self.active_users))
         friends = self.session.query(models.Relationship).filter_by(state = 1).filter((models.Relationship.user1_id == user.id) | (models.Relationship.user2_id == user.id)).all()
         for friend in friends:
